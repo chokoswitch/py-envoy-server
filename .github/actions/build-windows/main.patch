@@ -1,8 +1,88 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+index 404cb20f0a..02c9c029f2 100644
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -13,7 +13,6 @@ bazel_dep(name = "apple_support", version = "2.3.0", repo_name = "build_bazel_ap
+ bazel_dep(name = "aspect_bazel_lib", version = "2.22.0")
+ bazel_dep(name = "aspect_rules_js", version = "2.5.0")
+ bazel_dep(name = "aws-c-auth-testdata", version = "0.10.4.envoy")
+-
+ bazel_dep(name = "bazel-compdb", version = "0.0.0-20220906-4086479.envoy")
+ bazel_dep(name = "bazel_features", version = "1.50.0")
+ bazel_dep(name = "bazel_skylib", version = "1.9.0")
+@@ -120,6 +119,21 @@ bazel_dep(name = "zipkin-api", version = "1.0.0.envoy")
+ bazel_dep(name = "zlib-ng", version = "2.3.2.envoy")
+ bazel_dep(name = "zstd", version = "1.5.7")
+ 
++####################################################################################
++# deps: Non-module
++####################################################################################
++
++# dlfcn-win32 does not publish a Bazel module.
++http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
++
++http_archive(
++    name = "com_github_dlfcn_win32",
++    build_file = "//bazel/windows:dlfcn_win32.BUILD",
++    sha256 = "f61a874bc9163ab488accb364fd681d109870c86e8071f4710cbcdcbaf9f2565",
++    strip_prefix = "dlfcn-win32-1.4.2",
++    urls = ["https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v1.4.2.tar.gz"],
++)
++
+ ####################################################################################
+ # deps: Dev
+ ####################################################################################
+@@ -154,6 +168,25 @@ single_version_override(
+     version = "0.20260413.0",
+ )
+ 
++# Preserve the Windows fixes on top of the registry's patches.
++single_version_override(
++    module_name = "cel-cpp",
++    patch_strip = 1,
++    patches = ["//bazel/windows:cel-cpp.patch"],
++)
++
++single_version_override(
++    module_name = "luajit",
++    patch_strip = 1,
++    patches = ["//bazel/windows:luajit.patch"],
++)
++
++single_version_override(
++    module_name = "proto-converter",
++    patch_strip = 1,
++    patches = ["//bazel/windows:proto-converter.patch"],
++)
++
+ # testing/debugging
+ # local_path_override(
+ #     module_name = "envoy_toolshed",
+@@ -190,7 +223,7 @@ use_repo(grcov_ext, "grcov")
+ # Prebuilt wee8 (V8) static library, selected via the //bazel:v8_engine flag.
+ wee8_ext = use_extension("@envoy_toolshed//v8:extensions.bzl", "wee8_prebuilt_extension")
+ wee8_ext.setup()
+-use_repo(wee8_ext, "wee8_prebuilt_x86_64", "wee8_prebuilt_x86_64_libstdcxx", "wee8_prebuilt_aarch64")
++use_repo(wee8_ext, "wee8_prebuilt_aarch64", "wee8_prebuilt_x86_64", "wee8_prebuilt_x86_64_libstdcxx")
+ 
+ llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+ llvm.cxx_cross_lib(
+@@ -365,9 +398,9 @@ register_toolchains("@rust_toolchains//:all")
+ 
+ crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+ crate.annotation(
++    build_script_rundir = ".",
+     crate = "ring",
+     repositories = ["envoy_rust_crate_index"],
+-    build_script_rundir = ".",
+ )
+ crate.from_cargo(
+     name = "envoy_rust_crate_index",
 diff --git a/bazel/BUILD b/bazel/BUILD
-index fefd7c435b..411ed2b307 100644
+index 96d9c78443..83e20b135b 100644
 --- a/bazel/BUILD
 +++ b/bazel/BUILD
-@@ -99,6 +99,15 @@ genrule(
+@@ -79,6 +79,15 @@ genrule(
      stamp = 1,
  )
  
@@ -18,41 +98,59 @@ index fefd7c435b..411ed2b307 100644
  cc_library(
      name = "static_stdlib",
      linkopts = select({
-diff --git a/bazel/com_google_protoconverter_win.patch b/bazel/com_google_protoconverter_win.patch
-new file mode 100644
-index 0000000000..853d5b57e2
---- /dev/null
-+++ b/bazel/com_google_protoconverter_win.patch
-@@ -0,0 +1,29 @@
-+diff --git a/build_defs/BUILD.bazel b/build_defs/BUILD.bazel
-+index 732514d..a6be18b 100644
-+--- a/build_defs/BUILD.bazel
-++++ b/build_defs/BUILD.bazel
-+@@ -13,10 +13,23 @@ package(
-+ )
-+ 
-+ create_compiler_config_setting(
-+-    name = "config_msvc",
-++    name = "config_msvc_cl",
-+     value = "msvc-cl",
-+ )
-+ 
-++create_compiler_config_setting(
-++    name = "config_clang_cl",
-++    value = "clang-cl",
-++)
-++
-++selects.config_setting_group(
-++    name = "config_msvc",
-++    match_any = [
-++        ":config_clang_cl",
-++        ":config_msvc_cl",
-++    ],
-++)
-++
-+ config_setting(
-+     name = "aarch64",
-+     values = {"cpu": "linux-aarch_64"},
+diff --git a/bazel/deps.yaml b/bazel/deps.yaml
+index b008c521aa..678aba11b9 100644
+--- a/bazel/deps.yaml
++++ b/bazel/deps.yaml
+@@ -156,6 +156,26 @@ c-ares:
+   license: "c-ares"
+   license_url: "https://github.com/c-ares/c-ares/blob/cares-{underscore_version}/LICENSE.md"
+ 
++com_github_dlfcn_win32:
++  project_name: "dlfcn-win32"
++  project_desc: "An implementation of dlfcn for Windows."
++  project_url: "https://github.com/dlfcn-win32/dlfcn-win32"
++  version: "1.4.2"
++  sha256: "f61a874bc9163ab488accb364fd681d109870c86e8071f4710cbcdcbaf9f2565"
++  strip_prefix: "dlfcn-win32-1.4.2"
++  urls:
++  - "https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v1.4.2.tar.gz"
++  use_category:
++  - dataplane_ext
++  extensions:
++  - envoy.filters.http.dynamic_modules
++  - envoy.filters.listener.dynamic_modules
++  - envoy.filters.network.dynamic_modules
++  release_date: "2025-03-04"
++  cpe: "N/A"
++  license: "MIT"
++  license_url: "https://github.com/dlfcn-win32/dlfcn-win32/blob/v1.4.2/COPYING"
++
+ cel-cpp:
+   project_name: "Common Expression Language (CEL) C++ library"
+   project_desc: "Common Expression Language (CEL) C++ library"
+diff --git a/bazel/deps/BUILD b/bazel/deps/BUILD
+index 68acaf03c1..a50d696f02 100644
+--- a/bazel/deps/BUILD
++++ b/bazel/deps/BUILD
+@@ -80,12 +80,16 @@ alias(
+ alias(
+     name = "liburing",
+     actual = "@liburing",
++    target_compatible_with = ["@platforms//os:linux"],
+     visibility = ["//visibility:public"],
+ )
+ 
+ alias(
+     name = "luajit",
+-    actual = "@luajit",
++    actual = select({
++        "//bazel:windows_x86_64": "//bazel/windows:luajit",
++        "//conditions:default": "@luajit",
++    }),
+     visibility = ["//visibility:public"],
+ )
+ 
 diff --git a/bazel/envoy_internal.bzl b/bazel/envoy_internal.bzl
 index 2adc5df036..5ffbd56823 100644
 --- a/bazel/envoy_internal.bzl
@@ -79,65 +177,58 @@ index 2adc5df036..5ffbd56823 100644
          "//conditions:default": [],
      })
  
-diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index f6b4ac8171..837bb451e4 100644
---- a/bazel/foreign_cc/BUILD
-+++ b/bazel/foreign_cc/BUILD
-@@ -61,6 +61,7 @@ configure_make(
-         "nocompdb",
-         "skip_on_windows",
-     ],
-+    target_compatible_with = ["@platforms//os:linux"],
-     targets = ["install"],
- )
- 
-@@ -198,7 +199,10 @@ cc_library(
- 
- configure_make(
-     name = "luajit",
--    configure_command = "luajit_build.sh",
-+    configure_command = select({
-+        "//bazel:windows_x86_64": "luajit_build_win.sh",
-+        "//conditions:default": "luajit_build.sh",
-+    }),
-     env = select({
-         # This shouldn't be needed! See
-         # https://github.com/envoyproxy/envoy/issues/6084
-@@ -500,6 +504,29 @@ envoy_cmake(
-     tags = ["skip_on_windows"],
- )
- 
+diff --git a/bazel/windows/BUILD b/bazel/windows/BUILD
+new file mode 100644
+index 0000000000..b7effcb961
+--- /dev/null
++++ b/bazel/windows/BUILD
+@@ -0,0 +1,40 @@
++load("@rules_foreign_cc//foreign_cc:configure.bzl", "configure_make")
++load("//bazel:envoy_build_system.bzl", "envoy_package")
++
++licenses(["notice"])  # Apache 2
++
++envoy_package()
++
++exports_files([
++    "cel-cpp.patch",
++    "dlfcn_win32.BUILD",
++    "luajit.patch",
++    "proto-converter.patch",
++])
++
 +configure_make(
-+    name = "dlfcn_win32_build",
++    name = "dlfcn_win32",
 +    configure_in_place = True,
 +    configure_options = [
 +        "--disable-shared",
 +        "--enable-static",
 +    ],
 +    lib_source = "@com_github_dlfcn_win32//:all",
-+    out_static_libs = select({
-+        "//bazel:windows_x86_64": ["libdl.a"],
-+        "//conditions:default": [],
-+    }),
++    out_static_libs = ["libdl.a"],
 +    target_compatible_with = ["@platforms//os:windows"],
 +)
 +
-+cc_library(
-+    name = "dlfcn_win32",
-+    deps = select({
-+        "//bazel:windows_x86_64": [":dlfcn_win32_build"],
-+        "//conditions:default": [],
++# The registry's native LuaJIT build currently supports only Linux and macOS.
++configure_make(
++    name = "luajit",
++    configure_command = "luajit_build_win.sh",
++    env = select({
++        "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
++        "//conditions:default": {},
 +    }),
++    lib_source = "@luajit//:all",
++    out_include_dir = "include/luajit-2.1",
++    out_static_libs = ["lua51.lib"],
++    target_compatible_with = ["@platforms//os:windows"],
++    targets = [],
 +)
-+
- envoy_cmake(
-     name = "maxmind",
-     build_args = select({
-diff --git a/bazel/foreign_cc/cel-cpp.patch b/bazel/foreign_cc/cel-cpp.patch
-index b40b2779d7..e7276c1b0b 100644
---- a/bazel/foreign_cc/cel-cpp.patch
-+++ b/bazel/foreign_cc/cel-cpp.patch
-@@ -1,3 +1,15 @@
+diff --git a/bazel/windows/cel-cpp.patch b/bazel/windows/cel-cpp.patch
+new file mode 100644
+index 0000000000..01a0131434
+--- /dev/null
++++ b/bazel/windows/cel-cpp.patch
+@@ -0,0 +1,12 @@
 +diff --git a/bazel/cel_proto_transitive_descriptor_set.bzl b/bazel/cel_proto_transitive_descriptor_set.bzl
 +index e65e0b4a..18837236 100644
 +--- a/bazel/cel_proto_transitive_descriptor_set.bzl
@@ -150,15 +241,37 @@ index b40b2779d7..e7276c1b0b 100644
 +     )
 +     return DefaultInfo(
 +         files = depset([output]),
- diff --git a/bazel/deps.bzl b/bazel/deps.bzl
- index 1f8801df..64ad71b5 100644
- --- a/bazel/deps.bzl
-diff --git a/bazel/foreign_cc/luajit_win.patch b/bazel/foreign_cc/luajit_win.patch
+diff --git a/bazel/windows/dlfcn_win32.BUILD b/bazel/windows/dlfcn_win32.BUILD
 new file mode 100644
-index 0000000000..8b0ae5a505
+index 0000000000..be376c77ef
 --- /dev/null
-+++ b/bazel/foreign_cc/luajit_win.patch
-@@ -0,0 +1,63 @@
++++ b/bazel/windows/dlfcn_win32.BUILD
+@@ -0,0 +1,7 @@
++licenses(["notice"])  # Apache 2
++
++filegroup(
++    name = "all",
++    srcs = glob(["**"]),
++    visibility = ["//visibility:public"],
++)
+diff --git a/bazel/windows/luajit.patch b/bazel/windows/luajit.patch
+new file mode 100644
+index 0000000000..58ebc326f9
+--- /dev/null
++++ b/bazel/windows/luajit.patch
+@@ -0,0 +1,75 @@
++diff --git a/BUILD.bazel b/BUILD.bazel
++--- a/BUILD.bazel
+++++ b/BUILD.bazel
++@@ -5 +5,8 @@
++ exports_files(["COPYRIGHT"])
+++
+++# Source archive for the Windows build.
+++filegroup(
+++    name = "all",
+++    srcs = glob(["**"]),
+++    visibility = ["//visibility:public"],
+++)
 +diff --git a/luajit_build_win.sh b/luajit_build_win.sh
 +new file mode 100755
 +index 00000000..c6267893
@@ -222,85 +335,57 @@ index 0000000000..8b0ae5a505
 + @set LJLINKTYPE=/DEBUG /RELEASE
 + @set LJLINKTYPE_DEBUG=/DEBUG
 + @set LJLINKTARGET=/OPT:REF /OPT:ICF /INCREMENTAL:NO
-diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
-index a5b4f15017..fe6b45d8bb 100644
---- a/bazel/repositories.bzl
-+++ b/bazel/repositories.bzl
-@@ -86,7 +86,10 @@ def _cc_deps():
-         "proto-converter",
-         location_name = "proto_converter",
-         patch_args = ["-p1"],
--        patches = ["@envoy//bazel:com_google_protoconverter.patch"],
-+        patches = [
-+            "@envoy//bazel:com_google_protoconverter.patch",
-+            "@envoy//bazel:com_google_protoconverter_win.patch",
-+        ],
-         patch_cmds = [
-             "rm src/google/protobuf/stubs/common.cc",
-             "rm src/google/protobuf/stubs/common.h",
-@@ -278,6 +281,7 @@ def envoy_dependencies(skip_targets = [], bzlmod = False):
-     )
-     external_http_archive("envoy_toolshed")
- 
-+    _com_github_dlfcn_win32()
-     _libmaxminddb()
-     _thrift()
-     _wuffs()
-@@ -999,7 +1003,10 @@ def _luajit():
-     external_http_archive(
-         name = "luajit",
-         build_file_content = LUAJIT_BUILD_CONTENT,
--        patches = ["@envoy//bazel/foreign_cc:luajit.patch"],
-+        patches = [
-+            "@envoy//bazel/foreign_cc:luajit.patch",
-+            "@envoy//bazel/foreign_cc:luajit_win.patch",
-+        ],
-         patch_args = ["-p1"],
-     )
- 
-@@ -1153,6 +1160,12 @@ def _libmaxminddb():
-         build_file_content = LIBMAXMINDDB_BUILD_CONTENT,
-     )
- 
-+def _com_github_dlfcn_win32():
-+    external_http_archive(
-+        name = "com_github_dlfcn_win32",
-+        build_file_content = BUILD_ALL_CONTENT,
-+    )
-+
- def _wuffs():
-     external_http_archive(
-         name = "wuffs",
-diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl
-index 1647059754..9b294dcc9c 100644
---- a/bazel/repository_locations.bzl
-+++ b/bazel/repository_locations.bzl
-@@ -649,6 +649,25 @@ REPOSITORY_LOCATIONS_SPEC = dict(
-         sha256 = "26d4021f6898e23b82ef953078389dd49ac2b5618ac564ade4ef87cced147b38",
-         urls = ["https://github.com/bazelbuild/rules_license/releases/download/{version}/rules_license-{version}.tar.gz"],
-     ),
-+    com_github_dlfcn_win32 = dict(
-+        project_name = "dlfcn-win32",
-+        project_desc = "An implementation of dlfcn for Windows.",
-+        project_url = "https://github.com/dlfcn-win32/dlfcn-win32",
-+        version = "1.4.2",
-+        sha256 = "f61a874bc9163ab488accb364fd681d109870c86e8071f4710cbcdcbaf9f2565",
-+        strip_prefix = "dlfcn-win32-{version}",
-+        urls = ["https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v{version}.tar.gz"],
-+        use_category = ["dataplane_ext"],
-+        extensions = [
-+            "envoy.filters.http.dynamic_modules",
-+            "envoy.filters.listener.dynamic_modules",
-+            "envoy.filters.network.dynamic_modules",
-+        ],
-+        release_date = "2025-03-04",
-+        cpe = "N/A",
-+        license = "MIT",
-+        license_url = "https://github.com/dlfcn-win32/dlfcn-win32/blob/v{version}/COPYING",
-+    ),
-     libmaxminddb = dict(
-         version = "1.13.3",
-         sha256 = "a66502ea76eadbe17f2cd6fd708946777253972d2ae8157dee1b23a2fb528171",
+diff --git a/bazel/windows/proto-converter.patch b/bazel/windows/proto-converter.patch
+new file mode 100644
+index 0000000000..853d5b57e2
+--- /dev/null
++++ b/bazel/windows/proto-converter.patch
+@@ -0,0 +1,29 @@
++diff --git a/build_defs/BUILD.bazel b/build_defs/BUILD.bazel
++index 732514d..a6be18b 100644
++--- a/build_defs/BUILD.bazel
+++++ b/build_defs/BUILD.bazel
++@@ -13,10 +13,23 @@ package(
++ )
++ 
++ create_compiler_config_setting(
++-    name = "config_msvc",
+++    name = "config_msvc_cl",
++     value = "msvc-cl",
++ )
++ 
+++create_compiler_config_setting(
+++    name = "config_clang_cl",
+++    value = "clang-cl",
+++)
+++
+++selects.config_setting_group(
+++    name = "config_msvc",
+++    match_any = [
+++        ":config_clang_cl",
+++        ":config_msvc_cl",
+++    ],
+++)
+++
++ config_setting(
++     name = "aarch64",
++     values = {"cpu": "linux-aarch_64"},
+diff --git a/bazelrc.windows b/bazelrc.windows
+index 3ed933759a..d9be2388ff 100644
+--- a/bazelrc.windows
++++ b/bazelrc.windows
+@@ -44,8 +44,8 @@ build:windows --per_file_copt=source/extensions/http/ext_proc/.*@-Wno-nontrivial
+ build:windows --per_file_copt=source/extensions/filters/common/expr/.*@-Wno-nontrivial-memcall
+ build:windows --per_file_copt=source/extensions/filters/http/ext_proc/.*@-Wno-nontrivial-memcall
+ build:windows --per_file_copt=source/extensions/tracers/opentelemetry/samplers/cel/.*@-Wno-nontrivial-memcall
+-build:windows --per_file_copt=external/com_google_cel_cpp/.*@/DWIN32_LEAN_AND_MEAN
+-build:windows --per_file_copt=external/com_google_cel_cpp/.*@/DNOUSER
+-build:windows --per_file_copt=external/com_google_cel_cpp/.*@/DNOGDI
++build:windows --per_file_copt=external/cel-cpp.*/.*@/DWIN32_LEAN_AND_MEAN
++build:windows --per_file_copt=external/cel-cpp.*/.*@/DNOUSER
++build:windows --per_file_copt=external/cel-cpp.*/.*@/DNOGDI
+ build:windows --verbose_failures
+ build:windows --curses=no
 diff --git a/envoy/api/io_error.h b/envoy/api/io_error.h
 index fb12ee3d16..bcd3463278 100644
 --- a/envoy/api/io_error.h
@@ -507,7 +592,7 @@ index 37446fe8f6..c5180515cf 100644
  
  } // namespace ReverseConnection
 diff --git a/source/extensions/dynamic_modules/BUILD b/source/extensions/dynamic_modules/BUILD
-index d0fa20330d..eeb44ca96a 100644
+index d0fa20330d..ba58c1619c 100644
 --- a/source/extensions/dynamic_modules/BUILD
 +++ b/source/extensions/dynamic_modules/BUILD
 @@ -45,7 +45,10 @@ envoy_cc_library(
@@ -516,7 +601,7 @@ index d0fa20330d..eeb44ca96a 100644
          "@envoy_api//envoy/extensions/dynamic_modules/v3:pkg_cc_proto",
 -    ],
 +    ] + select({
-+        "//bazel:windows_x86_64": ["//bazel/foreign_cc:dlfcn_win32"],
++        "//bazel:windows_x86_64": ["//bazel/windows:dlfcn_win32"],
 +        "//conditions:default": [],
 +    }),
  )
