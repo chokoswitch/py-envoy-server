@@ -1,5 +1,5 @@
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 404cb20f0a..ae0516c0ba 100644
+index 404cb20f0a..b19a897a93 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -13,7 +13,6 @@ bazel_dep(name = "apple_support", version = "2.3.0", repo_name = "build_bazel_ap
@@ -32,7 +32,7 @@ index 404cb20f0a..ae0516c0ba 100644
  ####################################################################################
  # deps: Dev
  ####################################################################################
-@@ -154,6 +168,31 @@ single_version_override(
+@@ -154,6 +168,43 @@ single_version_override(
      version = "0.20260413.0",
  )
  
@@ -50,6 +50,12 @@ index 404cb20f0a..ae0516c0ba 100644
 +)
 +
 +single_version_override(
++    module_name = "libevent",
++    patch_strip = 1,
++    patches = ["//bazel/windows:libevent.patch"],
++)
++
++single_version_override(
 +    module_name = "luajit",
 +    patch_strip = 1,
 +    patches = ["//bazel/windows:luajit.patch"],
@@ -61,10 +67,16 @@ index 404cb20f0a..ae0516c0ba 100644
 +    patches = ["//bazel/windows:proto-converter.patch"],
 +)
 +
++single_version_override(
++    module_name = "quiche",
++    patch_strip = 1,
++    patches = ["//bazel/windows:quiche.patch"],
++)
++
  # testing/debugging
  # local_path_override(
  #     module_name = "envoy_toolshed",
-@@ -190,7 +229,7 @@ use_repo(grcov_ext, "grcov")
+@@ -190,7 +241,7 @@ use_repo(grcov_ext, "grcov")
  # Prebuilt wee8 (V8) static library, selected via the //bazel:v8_engine flag.
  wee8_ext = use_extension("@envoy_toolshed//v8:extensions.bzl", "wee8_prebuilt_extension")
  wee8_ext.setup()
@@ -73,7 +85,7 @@ index 404cb20f0a..ae0516c0ba 100644
  
  llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
  llvm.cxx_cross_lib(
-@@ -365,9 +404,9 @@ register_toolchains("@rust_toolchains//:all")
+@@ -365,9 +416,9 @@ register_toolchains("@rust_toolchains//:all")
  
  crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
  crate.annotation(
@@ -185,10 +197,10 @@ index 2adc5df036..5ffbd56823 100644
  
 diff --git a/bazel/windows/BUILD b/bazel/windows/BUILD
 new file mode 100644
-index 0000000000..5bd771063b
+index 0000000000..8769547bd6
 --- /dev/null
 +++ b/bazel/windows/BUILD
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,43 @@
 +load("@rules_foreign_cc//foreign_cc:configure.bzl", "configure_make")
 +load("//bazel:envoy_build_system.bzl", "envoy_package")
 +
@@ -200,8 +212,10 @@ index 0000000000..5bd771063b
 +    "cel-cpp.patch",
 +    "dlfcn_win32.BUILD",
 +    "envoy_toolshed.patch",
++    "libevent.patch",
 +    "luajit.patch",
 +    "proto-converter.patch",
++    "quiche.patch",
 +])
 +
 +configure_make(
@@ -316,6 +330,25 @@ index 0000000000..c319cbb952
 +     prefix = "tsan-libs-x86_64/lib",
 +     strip_prefix = ".",
 + )
+diff --git a/bazel/windows/libevent.patch b/bazel/windows/libevent.patch
+new file mode 100644
+index 0000000000..917ce9d628
+--- /dev/null
++++ b/bazel/windows/libevent.patch
+@@ -0,0 +1,13 @@
++diff --git a/evconfig-private.h b/evconfig-private.h
++--- a/evconfig-private.h
+++++ b/evconfig-private.h
++@@ -8,5 +8,8 @@
++ #elif defined(__APPLE__)
++ #include "evconfig-private_apple.h"
++ #elif defined(_MSC_VER)
++-// No file needed for MSVC.
+++// Match the byte order supplied by the CMake build for sha1.c on Windows.
+++#ifndef LITTLE_ENDIAN
+++#define LITTLE_ENDIAN 1
+++#endif
++ #endif
 diff --git a/bazel/windows/luajit.patch b/bazel/windows/luajit.patch
 new file mode 100644
 index 0000000000..58ebc326f9
@@ -432,6 +465,27 @@ index 0000000000..853d5b57e2
 + config_setting(
 +     name = "aarch64",
 +     values = {"cpu": "linux-aarch_64"},
+diff --git a/bazel/windows/quiche.patch b/bazel/windows/quiche.patch
+new file mode 100644
+index 0000000000..99f3a48a75
+--- /dev/null
++++ b/bazel/windows/quiche.patch
+@@ -0,0 +1,15 @@
++diff --git a/quiche_overlay.bzl b/quiche_overlay.bzl
++--- a/quiche_overlay.bzl
+++++ b/quiche_overlay.bzl
++@@ -6,4 +6,10 @@
++     "-Wno-old-style-cast",
++     # Envoy build should not fail if a dependency has a warning.
++     "-Wno-error",
++-]
+++] + select({
+++    # Envoy platform headers include windows.h before winsock2.h.
+++    "@platforms//os:windows": [
+++        "-DWIN32_LEAN_AND_MEAN",
+++    ],
+++    "//conditions:default": [],
+++})
 diff --git a/bazelrc.windows b/bazelrc.windows
 index 3ed933759a..d9be2388ff 100644
 --- a/bazelrc.windows
