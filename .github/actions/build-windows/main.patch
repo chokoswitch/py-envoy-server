@@ -1,5 +1,5 @@
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 404cb20f0a..b19a897a93 100644
+index e463b0bb83..73dc6ff333 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -13,7 +13,6 @@ bazel_dep(name = "apple_support", version = "2.3.0", repo_name = "build_bazel_ap
@@ -10,9 +10,9 @@ index 404cb20f0a..b19a897a93 100644
  bazel_dep(name = "bazel-compdb", version = "0.0.0-20220906-4086479.envoy")
  bazel_dep(name = "bazel_features", version = "1.50.0")
  bazel_dep(name = "bazel_skylib", version = "1.9.0")
-@@ -120,6 +119,21 @@ bazel_dep(name = "zipkin-api", version = "1.0.0.envoy")
+@@ -122,6 +121,21 @@ bazel_dep(name = "zipkin-api", version = "1.0.0.envoy")
  bazel_dep(name = "zlib-ng", version = "2.3.2.envoy")
- bazel_dep(name = "zstd", version = "1.5.7")
+ bazel_dep(name = "zstd", version = "1.5.7.bcr.1")
  
 +####################################################################################
 +# deps: Non-module
@@ -32,7 +32,7 @@ index 404cb20f0a..b19a897a93 100644
  ####################################################################################
  # deps: Dev
  ####################################################################################
-@@ -154,6 +168,43 @@ single_version_override(
+@@ -159,6 +173,43 @@ single_version_override(
      version = "0.20260413.0",
  )
  
@@ -76,7 +76,7 @@ index 404cb20f0a..b19a897a93 100644
  # testing/debugging
  # local_path_override(
  #     module_name = "envoy_toolshed",
-@@ -190,7 +241,7 @@ use_repo(grcov_ext, "grcov")
+@@ -195,7 +246,7 @@ use_repo(grcov_ext, "grcov")
  # Prebuilt wee8 (V8) static library, selected via the //bazel:v8_engine flag.
  wee8_ext = use_extension("@envoy_toolshed//v8:extensions.bzl", "wee8_prebuilt_extension")
  wee8_ext.setup()
@@ -85,7 +85,7 @@ index 404cb20f0a..b19a897a93 100644
  
  llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
  llvm.cxx_cross_lib(
-@@ -365,9 +416,9 @@ register_toolchains("@rust_toolchains//:all")
+@@ -370,9 +421,9 @@ register_toolchains("@rust_toolchains//:all")
  
  crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
  crate.annotation(
@@ -708,10 +708,10 @@ index 37446fe8f6..c5180515cf 100644
  
  } // namespace ReverseConnection
 diff --git a/source/extensions/dynamic_modules/BUILD b/source/extensions/dynamic_modules/BUILD
-index d0fa20330d..ba58c1619c 100644
+index adc7b73f4c..80f3475ee6 100644
 --- a/source/extensions/dynamic_modules/BUILD
 +++ b/source/extensions/dynamic_modules/BUILD
-@@ -45,7 +45,10 @@ envoy_cc_library(
+@@ -48,7 +48,10 @@ envoy_cc_library(
          "@abseil-cpp//absl/types:span",
          "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
          "@envoy_api//envoy/extensions/dynamic_modules/v3:pkg_cc_proto",
