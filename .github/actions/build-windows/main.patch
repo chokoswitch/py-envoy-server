@@ -1,8 +1,8 @@
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 691785bb9b..14df7df2b5 100644
+index 794d8fb13f..e532735577 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
-@@ -120,6 +120,21 @@ bazel_dep(name = "zipkin-api", version = "1.0.0.bcr.1")
+@@ -119,6 +119,21 @@ bazel_dep(name = "zipkin-api", version = "1.0.0.bcr.1")
  bazel_dep(name = "zlib-ng", version = "2.3.3.bcr.2")
  bazel_dep(name = "zstd", version = "1.5.7.bcr.2")
  
@@ -24,30 +24,8 @@ index 691785bb9b..14df7df2b5 100644
  ####################################################################################
  # deps: Dev
  ####################################################################################
-@@ -157,6 +172,13 @@ single_version_override(
-     version = "3.5.7.envoy",
- )
- 
-+# TODO: Remove once the registry links the LuaJIT VM object on Windows.
-+single_version_override(
-+    module_name = "luajit",
-+    patch_strip = 1,
-+    patches = ["//bazel/windows:luajit.patch"],
-+)
-+
- # testing/debugging
- # local_path_override(
- #     module_name = "envoy_toolshed",
-@@ -370,6 +392,7 @@ go_sdk.download(
-         "linux_arm64": ("go1.27.1.linux-arm64.tar.gz", "3450b45a3f9ee8568792736a5c5e70a1f2e9b36c35a8f74958c03e51d7d92bec"),
-         "darwin_arm64": ("go1.27.1.darwin-arm64.tar.gz", "ee215d57e0ec269c60cc9ceca68e6bda321ba9ee5afe24f4b0988703c2d87d12"),
-         "darwin_amd64": ("go1.27.1.darwin-amd64.tar.gz", "8f8f52c6649542cf027bbc9b9c68d1ec042f9f34808a40413f0b8b3f66f3caa4"),
-+        "windows_amd64": ("go1.27.1.windows-amd64.zip", "a3911b5e0e1b1053f25ed0675f4c1c6aad1e2bfcf253df2b9be4caabd2edd95d"),
-     },
-     version = "1.27.1",
- )
 diff --git a/api/MODULE.bazel b/api/MODULE.bazel
-index 3ffced499a..649348ae71 100644
+index 9bc91e720b..3fc7de300e 100644
 --- a/api/MODULE.bazel
 +++ b/api/MODULE.bazel
 @@ -101,6 +101,7 @@ go_sdk.download(
@@ -59,7 +37,7 @@ index 3ffced499a..649348ae71 100644
      version = "1.27.1",
  )
 diff --git a/bazel/deps.yaml b/bazel/deps.yaml
-index ed30927433..5b0d6e06eb 100644
+index 293e4fd366..00d5ee6879 100644
 --- a/bazel/deps.yaml
 +++ b/bazel/deps.yaml
 @@ -157,6 +157,26 @@ c-ares:
@@ -89,15 +67,6 @@ index ed30927433..5b0d6e06eb 100644
  cel-cpp:
    project_name: "Common Expression Language (CEL) C++ library"
    project_desc: "Common Expression Language (CEL) C++ library"
-@@ -860,7 +880,7 @@ proto-converter:
-   project_desc: "Library that supports the conversion between protobuf binary and json"
-   project_url: "https://github.com/grpc-ecosystem/proto-converter"
-   apparent_name: proto-converter
--  release_date: "2024-06-25"
-+  release_date: "2026-09-12"
-   use_category:
-   - dataplane_core
-   - controlplane
 diff --git a/bazel/deps/BUILD b/bazel/deps/BUILD
 index 46d0a69f0b..afa7400c6d 100644
 --- a/bazel/deps/BUILD
@@ -112,10 +81,10 @@ index 46d0a69f0b..afa7400c6d 100644
  
 diff --git a/bazel/windows/BUILD b/bazel/windows/BUILD
 new file mode 100644
-index 0000000000..83ef9d7fff
+index 0000000000..77241f7c4a
 --- /dev/null
 +++ b/bazel/windows/BUILD
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,22 @@
 +load("@rules_foreign_cc//foreign_cc:configure.bzl", "configure_make")
 +load("//bazel:envoy_build_system.bzl", "envoy_package")
 +
@@ -125,7 +94,6 @@ index 0000000000..83ef9d7fff
 +
 +exports_files([
 +    "dlfcn_win32.BUILD",
-+    "luajit.patch",
 +])
 +
 +configure_make(
@@ -152,38 +120,6 @@ index 0000000000..be376c77ef
 +    srcs = glob(["**"]),
 +    visibility = ["//visibility:public"],
 +)
-diff --git a/bazel/windows/luajit.patch b/bazel/windows/luajit.patch
-new file mode 100644
-index 0000000000..d0a00412e1
---- /dev/null
-+++ b/bazel/windows/luajit.patch
-@@ -0,0 +1,26 @@
-+diff --git a/BUILD.bazel b/BUILD.bazel
-+--- a/BUILD.bazel
-++++ b/BUILD.bazel
-+@@ -385,8 +385,8 @@ cc_library(
-+     ] + glob([
-+         "src/lj_*.h",
-+     ]) + select({
-+-        # Generated VM assembly
-+-        ":windows_x86_64": [],
-++        # Generated VM assembly, an object file on Windows
-++        ":windows_x86_64": [":lj_vm_obj"],
-+         "//conditions:default": [":lj_vm_s"],
-+     }),
-+     hdrs = [
-+@@ -403,11 +403,6 @@ cc_library(
-+         ":lj_recdef_h",
-+         ":lj_folddef_h",
-+     ],
-+-    deps = select({
-+-        # Generated VM assembly on Windows is an .obj file
-+-        ":windows_x86_64": [":lj_vm_obj"],
-+-        "//conditions:default": [],
-+-    }),
-+     copts = [
-+         "-O2",
-+         "-fomit-frame-pointer",
 diff --git a/source/common/api/win32/os_sys_calls_impl.cc b/source/common/api/win32/os_sys_calls_impl.cc
 index f97586b9ed..820e13d23d 100644
 --- a/source/common/api/win32/os_sys_calls_impl.cc
@@ -236,10 +172,10 @@ index 10a0e03825..697ca723a3 100644
 +
 +exports_files(["abi.h"])
 diff --git a/source/extensions/dynamic_modules/win32/dynamic_modules.cc b/source/extensions/dynamic_modules/win32/dynamic_modules.cc
-index 3c78a507a2..469485a46b 100644
+index c8b0ed7921..7e67ea0ecc 100644
 --- a/source/extensions/dynamic_modules/win32/dynamic_modules.cc
 +++ b/source/extensions/dynamic_modules/win32/dynamic_modules.cc
-@@ -1,40 +1,346 @@
+@@ -1,75 +1,490 @@
  #include "source/extensions/dynamic_modules/dynamic_modules.h"
  
 -#include <filesystem>
@@ -260,7 +196,6 @@ index 3c78a507a2..469485a46b 100644
  
 -#include "absl/status/status.h"
 -#include "absl/status/statusor.h"
--#include "absl/strings/string_view.h"
 +#include "envoy/common/exception.h"
 +
 +#include "source/common/common/hex.h"
@@ -271,7 +206,8 @@ index 3c78a507a2..469485a46b 100644
 +#include "source/extensions/dynamic_modules/dynamic_module_stats.h"
 +
 +#include "absl/strings/ascii.h"
-+#include "absl/strings/str_cat.h"
+ #include "absl/strings/str_cat.h"
+-#include "absl/strings/string_view.h"
 +#include "absl/types/span.h"
 +#include "openssl/evp.h"
 +#include "openssl/sha.h"
@@ -284,8 +220,7 @@ index 3c78a507a2..469485a46b 100644
 +constexpr char DYNAMIC_MODULES_SEARCH_PATH[] = "ENVOY_DYNAMIC_MODULES_SEARCH_PATH";
 +
 +namespace {
- 
--void* DynamicModule::getSymbol(const absl::string_view symbol_ref) const { return nullptr; }
++
 +// Logged from the loader itself so that every extension type reports load failures, including the
 +// ones that have no scope to increment ``dynamic_modules.module_load_error`` on. It is also the
 +// only signal for a module named in the bootstrap config, since the server then exits before its
@@ -294,18 +229,14 @@ index 3c78a507a2..469485a46b 100644
 +  ENVOY_LOG_TO_LOGGER(Envoy::Logger::Registry::getLog(Envoy::Logger::Id::dynamic_modules), error,
 +                      "Unable to load dynamic module {}: {}", module, reason);
 +}
-+
+ 
+-void* DynamicModule::getSymbol(const absl::string_view symbol_ref) const { return nullptr; }
 +} // namespace
  
  absl::StatusOr<DynamicModulePtr>
  newDynamicModule(const std::filesystem::path& object_file_absolute_path, const bool do_not_close,
                   const bool load_globally) {
 -  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
-+  // From the man page of dlopen(3):
-+  //
-+  // > This can be used to test if the object is already resident (dlopen() returns NULL if it
-+  // > is not, or the object's handle if it is resident).
-+  //
 +  void* handle = nullptr;
 +  // RTLD_LAZY is required for not only performance but also simply to load the module, otherwise
 +  // dlopen results in Invalid argument.
@@ -390,24 +321,17 @@ index 3c78a507a2..469485a46b 100644
 +    return dynamic_module;
 +  }
 +
-+  // If not found, pass only the library name to dlopen to search in the standard library paths.
-+  // The man page of dlopen(3) says:
-+  //
-+  // > If path contains a slash ("/"), then it is interpreted as a
-+  // > (relative or absolute) pathname. Otherwise, the dynamic linker
-+  // > searches for the object ...
-+  //
-+  // which basically says dlopen searches for LD_LIBRARY_PATH and /usr/lib, etc.
++  // If not found, pass only the DLL name to search the Windows DLL search path.
 +  absl::StatusOr<DynamicModulePtr> dynamic_module =
-+      newDynamicModule(fmt::format("lib{}.so", module_name), do_not_close, load_globally);
++      newDynamicModule(fmt::format("{}.dll", module_name), do_not_close, load_globally);
 +  if (dynamic_module.ok()) {
 +    return dynamic_module;
 +  }
 +
 +  return absl::InvalidArgumentError(
-+      absl::StrCat("Failed to load dynamic module: lib", module_name,
-+                   ".so not found in any search path: ", file_path_absolute.string(),
-+                   " or standard library paths such as LD_LIBRARY_PATH, /usr/lib, etc. or failed "
++      absl::StrCat("Failed to load dynamic module: ", module_name,
++                   ".dll not found in any search path: ", file_path_absolute.string(),
++                   " or the Windows DLL search path, or failed "
 +                   "to initialize: ",
 +                   dynamic_module.status().message()));
  }
@@ -422,16 +346,24 @@ index 3c78a507a2..469485a46b 100644
 +    incrementLoadFailure(context, stat_name, ModuleLoadErrorStat);
 +  }
 +  return result;
-+}
-+
+ }
+ 
+-absl::StatusOr<DynamicModuleLoadResult>
+-newDynamicModuleByConfig(const ProtoDynamicModuleConfig& config, absl::string_view stat_name,
+-                         OptRef<Server::Configuration::CommonFactoryContext> context,
+-                         OptRef<Init::Manager> init_manager,
+-                         std::function<void(DynamicModulePtr)> on_loaded) {
+-  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
 +DynamicModule::~DynamicModule() {
 +  if (!static_module_name_.empty()) {
 +    // Static modules have no dlopen handle to close.
 +    return;
 +  }
 +  dlclose(handle_);
-+}
-+
+ }
+ 
+-absl::StatusOr<DynamicModulePtr> newStaticModule(const absl::string_view module_name) {
+-  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
 +void* DynamicModule::getSymbol(const absl::string_view symbol_ref) const {
 +  if (!static_module_name_.empty()) {
 +    // For statically linked modules, look up the prefixed symbol in the process binary.
@@ -445,7 +377,8 @@ index 3c78a507a2..469485a46b 100644
 +}
 +
 +std::filesystem::path moduleTempPath(const absl::string_view sha256) {
-+  return std::filesystem::temp_directory_path() / fmt::format("envoy_dynamic_module_{}.so", sha256);
++  return std::filesystem::temp_directory_path() /
++         fmt::format("envoy_dynamic_module_{}.dll", sha256);
 +}
 +
 +absl::Status verifyFileSha256(const std::filesystem::path& path,
@@ -547,30 +480,36 @@ index 3c78a507a2..469485a46b 100644
 +        ec.message()));
 +  }
 +  return absl::OkStatus();
-+}
-+
-+absl::StatusOr<DynamicModulePtr> newDynamicModuleFromBytes(const absl::string_view module_bytes,
-+                                                           const absl::string_view sha256,
-+                                                           const bool do_not_close,
-+                                                           const bool load_globally) {
+ }
+ 
+ absl::StatusOr<DynamicModulePtr> newDynamicModuleFromBytes(const absl::string_view module_bytes,
+                                                            const absl::string_view sha256,
+                                                            const bool do_not_close,
+                                                            const bool load_globally) {
+-  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
 +  auto status = writeDynamicModuleBytesToDisk(module_bytes, sha256);
 +  if (!status.ok()) {
 +    return status;
 +  }
 +  auto temp_file_path = moduleTempPath(sha256);
-+  // If the module was already loaded at this path, newDynamicModule's RTLD_NOLOAD check
-+  // returns the existing handle without re-init.
 +  auto result = newDynamicModule(temp_file_path, do_not_close, load_globally);
 +  if (!result.ok()) {
 +    // Clean up the invalid file.
 +    std::filesystem::remove(temp_file_path);
 +  }
 +  return result;
-+}
-+
+ }
+ 
+-absl::Status writeDynamicModuleBytesToDisk(absl::string_view module_bytes,
+-                                           absl::string_view sha256) {
+-  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
+-}
 +absl::StatusOr<DynamicModulePtr> newStaticModule(const absl::string_view module_name) {
 +  auto dynamic_module = std::make_unique<DynamicModule>(module_name);
-+
+ 
+-std::filesystem::path moduleTempPath(const absl::string_view sha256) {
+-  return std::filesystem::temp_directory_path() /
+-         absl::StrCat("envoy_dynamic_module_", sha256, ".dll");
 +  const auto init_function =
 +      dynamic_module->getFunctionPointer<decltype(&envoy_dynamic_module_on_program_init)>(
 +          "envoy_dynamic_module_on_program_init");
@@ -598,17 +537,15 @@ index 3c78a507a2..469485a46b 100644
 +  return dynamic_module;
  }
  
- absl::StatusOr<DynamicModuleLoadResult>
-@@ -42,12 +348,156 @@ newDynamicModuleByConfig(const ProtoDynamicModuleConfig& config, absl::string_vi
-                          OptRef<Server::Configuration::CommonFactoryContext> context,
-                          OptRef<Init::Manager> init_manager,
-                          std::function<void(DynamicModulePtr)> on_loaded) {
+-absl::Status verifyFileSha256(const std::filesystem::path& path,
+-                              absl::string_view expected_sha256_hex) {
 -  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
--}
- 
--absl::Status writeDynamicModuleBytesToDisk(absl::string_view module_bytes,
--                                           absl::string_view sha256) {
--  return absl::UnimplementedError("Dynamic modules on Windows are not supported yet.");
++absl::StatusOr<DynamicModuleLoadResult>
++newDynamicModuleByConfig(const ProtoDynamicModuleConfig& config, absl::string_view stat_name,
++                         OptRef<Server::Configuration::CommonFactoryContext> context,
++                         OptRef<Init::Manager> init_manager,
++                         std::function<void(DynamicModulePtr)> on_loaded) {
++
 +  if (!config.has_module()) {
 +    // Name-based dynamic module loading: look up the module by name under the search path.
 +    if (config.name().empty()) {
