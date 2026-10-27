@@ -25,16 +25,16 @@ index 794d8fb13f..e532735577 100644
  # deps: Dev
  ####################################################################################
 diff --git a/api/MODULE.bazel b/api/MODULE.bazel
-index 9bc91e720b..3fc7de300e 100644
+index fd7b1eab32..670fa1348b 100644
 --- a/api/MODULE.bazel
 +++ b/api/MODULE.bazel
 @@ -101,6 +101,7 @@ go_sdk.download(
-         "linux_arm64": ("go1.27.1.linux-arm64.tar.gz", "3450b45a3f9ee8568792736a5c5e70a1f2e9b36c35a8f74958c03e51d7d92bec"),
-         "darwin_arm64": ("go1.27.1.darwin-arm64.tar.gz", "ee215d57e0ec269c60cc9ceca68e6bda321ba9ee5afe24f4b0988703c2d87d12"),
-         "darwin_amd64": ("go1.27.1.darwin-amd64.tar.gz", "8f8f52c6649542cf027bbc9b9c68d1ec042f9f34808a40413f0b8b3f66f3caa4"),
-+        "windows_amd64": ("go1.27.1.windows-amd64.zip", "a3911b5e0e1b1053f25ed0675f4c1c6aad1e2bfcf253df2b9be4caabd2edd95d"),
+         "linux_arm64": ("go1.27.3.linux-arm64.tar.gz", "a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49"),
+         "darwin_arm64": ("go1.27.3.darwin-arm64.tar.gz", "dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2"),
+         "darwin_amd64": ("go1.27.3.darwin-amd64.tar.gz", "b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750"),
++        "windows_amd64": ("go1.27.3.windows-amd64.zip", "f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff"),
      },
-     version = "1.27.1",
+     version = "1.27.3",
  )
 diff --git a/bazel/deps.yaml b/bazel/deps.yaml
 index 293e4fd366..00d5ee6879 100644
